@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_DB: eduvoice_db
+      POSTGRES_USER: eduvoice_user
+      POSTGRES_PASSWORD: eduvoice_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./eduvoice_backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./eduvoice_backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - DB_HOST=db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  celery:
+    build: ./eduvoice_backend
+    command: celery -A eduvoice_backend worker -l info
+    volumes:
+      - ./eduvoice_backend:/app
+    environment:
+      - DB_HOST=db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  celery-beat:
+    build: ./eduvoice_backend
+    command: celery -A eduvoice_backend beat -l info
+    volumes:
+      - ./eduvoice_backend:/app
+    environment:
+      - DB_HOST=db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  frontend:
+    build: ./eduvoice-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./eduvoice-frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000/api
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
