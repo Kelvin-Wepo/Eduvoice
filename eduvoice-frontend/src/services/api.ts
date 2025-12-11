@@ -170,6 +170,14 @@ export const documentsAPI = {
     const response: AxiosResponse<Document[]> = await api.get('/documents/my_documents/');
     return response.data;
   },
+
+  geminiRead: async (id: number, options?: { mode?: string; language?: string }): Promise<any> => {
+    const response: AxiosResponse<any> = await api.post(
+      `/documents/${id}/gemini_read/`,
+      options || { mode: 'summary' }
+    );
+    return response.data;
+  },
 };
 
 // Courses API

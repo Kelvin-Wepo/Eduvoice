@@ -185,6 +185,114 @@ class DocumentViewSet(viewsets.ModelViewSet):
             'task_id': task.id
         }, status=status.HTTP_202_ACCEPTED)
     
+    @action(detail=True, methods=['post'])
+    def gemini_read(self, request, pk=None):
+        """
+        Use Gemini to read and explain document content in real-time.
+        Supports streaming responses for long content.
+        """
+        import google.generativeai as genai
+        from django.conf import settings
+        
+        document = self.get_object()
+        
+        # Check if document has extracted text
+        if not document.extracted_text:
+            return Response(
+                {'error': 'Document text has not been extracted yet.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get optional parameters
+        mode = request.data.get('mode', 'summary')  # summary, explain, quiz, key_points
+        language = request.data.get('language', 'en')
+        
+        # Validate Gemini is configured
+        if not getattr(settings, 'GEMINI_API_KEY', ''):
+            return Response(
+                {'error': 'Gemini is not configured on the server.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        
+        try:
+            # Configure Gemini
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-pro')
+            
+            # Prepare the prompt based on mode
+            text_chunk = document.extracted_text[:5000]  # Use first 5000 chars for performance
+            
+            prompts = {
+                'summary': f"""Please provide a concise summary of the following document content.
+Make it clear, well-structured, and easy to understand. Include the main points and key takeaways.
+
+Document:
+{text_chunk}
+
+Summary:""",
+                
+                'explain': f"""Please explain the following document content in simple, easy-to-understand language.
+Break down complex concepts and provide examples where helpful.
+
+Document:
+{text_chunk}
+
+Explanation:""",
+                
+                'key_points': f"""Extract and list the key points and main ideas from the following document.
+Format them as a clear, numbered list with brief explanations.
+
+Document:
+{text_chunk}
+
+Key Points:""",
+                
+                'quiz': f"""Based on the following document, create 3-5 interesting quiz questions that test understanding.
+Format as: Question 1: [question]\\nAnswer: [answer]\\n
+
+Document:
+{text_chunk}
+
+Quiz Questions:"""
+            }
+            
+            prompt = prompts.get(mode, prompts['summary'])
+            
+            # Generate response using Gemini
+            response = model.generate_content(
+                prompt,
+                safety_settings=[
+                    {
+                        "category": "HARM_CATEGORY_UNSPECIFIED",
+                        "threshold": "BLOCK_NONE"
+                    },
+                ]
+            )
+            
+            if not response or not response.text:
+                return Response(
+                    {'error': 'Failed to generate content from Gemini.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            return Response({
+                'document_id': document.id,
+                'document_title': document.title,
+                'mode': mode,
+                'content': response.text,
+                'status': 'success'
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f'Gemini document reading failed: {str(e)}', exc_info=True)
+            
+            return Response(
+                {'error': f'Failed to read document with Gemini: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     @action(detail=False, methods=['get'])
     def my_documents(self, request):
         """Get documents uploaded by current user."""

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { documentsAPI, audioAPI } from '@/services/api';
 import { Document, AudioFile } from '@/types';
 import { AudioPlayer } from '@/components/AudioPlayer';
+import { GeminiReader } from '@/components/GeminiReader';
 import { 
   FileText, 
   Loader, 
@@ -25,6 +26,7 @@ export const DocumentDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
   const [selectedTTSEngine, setSelectedTTSEngine] = useState<'gtts' | 'elevenlabs' | 'gemini'>('gtts');
+  const [showGeminiReader, setShowGeminiReader] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -79,6 +81,15 @@ export const DocumentDetail: React.FC = () => {
     } finally {
       setConverting(false);
     }
+  };
+
+  const handleGeminiRead = async (mode: string) => {
+    if (!document) throw new Error('No document loaded');
+    
+    return await documentsAPI.geminiRead(document.id, {
+      mode: mode,
+      language: 'en'
+    });
   };
 
   const handleDownloadDocument = () => {
@@ -356,6 +367,29 @@ export const DocumentDetail: React.FC = () => {
               </p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Gemini Reader Section */}
+      {document?.status === 'ready' && (
+        <div className="space-y-4">
+          <button
+            onClick={() => setShowGeminiReader(!showGeminiReader)}
+            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 px-6 rounded-xl font-bold hover:from-blue-700 hover:to-cyan-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center space-x-2"
+          >
+            <Sparkles size={20} />
+            <span>{showGeminiReader ? 'Hide' : 'Show'} Gemini AI Reader</span>
+          </button>
+
+          {showGeminiReader && (
+            <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-blue-100 animate-fadeIn">
+              <GeminiReader 
+                documentId={document.id}
+                documentTitle={document.title}
+                onRead={handleGeminiRead}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
