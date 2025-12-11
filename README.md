@@ -40,6 +40,7 @@ EduVoice Notes is a full-stack web application that converts educational documen
 - **TTS Engines**: 
   - Google Text-to-Speech (gTTS) - Free, default
   - ElevenLabs API - Premium AI voices (optional)
+  - Gemini (Google) - Optional: can be integrated for advanced TTS/LLM-based processing
 - **File Processing**: PyPDF2, python-docx
 
 ### Frontend
